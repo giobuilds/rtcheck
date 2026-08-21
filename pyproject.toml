@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rtcheck"
+version = "0.1.0"
+description = "Static real-time safety checking for C: prove your audio callback never allocates, locks, or blocks."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["audio", "real-time", "static-analysis", "dsp", "embedded", "c"]
+dependencies = ["libclang>=16.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+rtcheck = "rtcheck.cli:main"
+
+[project.urls]
+Source = "https://github.com/giobuilds/rtcheck"
+Issues = "https://github.com/giobuilds/rtcheck/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
