@@ -53,7 +53,10 @@ Wiring it back through `_successors` produced 6,014 phantom findings on a 96k-li
 **`report.py` — output.** `render_text` splits findings into errors (`kind == "effect"`) and warnings (everything else); colour is applied only when both requested and `stdout.isatty()`. `render_json` is the CI-facing form. `cli.py` exits 1 for any `effect`, `unresolved`, or `parse_error` finding. The two fatal kinds are deliberate: an
 `unresolved` entry point means the check did not happen, and exiting 0 there would leave a renamed
 function green in CI forever. `parse_error` (a file that would not parse at all) is
-fatal for the same reason. `opaque` and `parse` are the deliberately *non*-fatal siblings —
+fatal for the same reason, unless its path matches a glob in `cfg.allow_parse_failures`, which
+demotes it to a `parse` warning. In practice `parse_error` fires only when clang cannot *open*
+the file — it recovers from binary garbage, truncation and random noise, reporting diagnostics
+instead — so the usual trigger is a compile database naming a file absent from the checkout. `opaque` and `parse` are the deliberately *non*-fatal siblings —
 respectively reachable library functions with no source, which a real project hits by the hundred,
 and a count of clang diagnostics warning that the graph may be incomplete. Keep those distinctions
 if you touch any of them: the fatal/non-fatal split is the whole reason the exit code means
