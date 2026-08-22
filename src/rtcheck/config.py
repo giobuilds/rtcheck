@@ -67,6 +67,7 @@ class Config:
     entrypoints: list[str] = field(default_factory=list)
     effects: dict[str, dict] = field(default_factory=lambda: dict(DEFAULT_EFFECTS))
     allow: list[str] = field(default_factory=list)
+    allow_parse_failures: list[str] = field(default_factory=list)
     enabled: list[str] | None = None
     flag_recursion: bool = True
     indirect: str = "warn"  # "warn" | "address-taken" | "ignore"
@@ -100,6 +101,7 @@ def load(path: Path | None) -> Config:
 
     cfg.entrypoints = list(raw.get("entrypoints", {}).get("functions", []))
     cfg.allow = list(raw.get("allow", {}).get("functions", []))
+    cfg.allow_parse_failures = list(raw.get("allow", {}).get("parse_failures", []))
 
     opts = raw.get("options", {})
     cfg.flag_recursion = bool(opts.get("flag_recursion", True))

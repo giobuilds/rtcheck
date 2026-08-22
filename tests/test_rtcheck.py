@@ -503,3 +503,52 @@ def test_address_taken_mode_still_reports_real_recursion(tmp_path):
         void rt(int d){ spin(d); }
     """, "rt", tmp_path, indirect="address-taken")
     assert [x for x in f if x.kind == "recursion"]
+
+
+# --- expected parse failures --------------------------------------------------
+#
+# The hatch is a list of globs rather than a switch: a file you know cannot be
+# parsed standalone is demoted to a warning, while a *new* failure elsewhere
+# still fails the build.
+
+def test_expected_parse_failure_is_demoted_to_a_warning(tmp_path):
+    missing = tmp_path / "vendor" / "blob.c"
+    cg = graph.build([str(missing)], ["-std=c11"])
+    cfg = config.Config(entrypoints=["rt"], allow_parse_failures=[str(tmp_path / "vendor" / "*.c")])
+    f = analyse.analyse(cg, cfg)
+    assert not [x for x in f if x.kind == "parse_error"]
+    assert any(x.kind == "parse" and "expected" in x.detail for x in f)
+
+
+def test_an_unlisted_parse_failure_is_still_fatal(tmp_path):
+    """The whole point: listing one file must not silence another."""
+    cfg_globs = [str(tmp_path / "vendor" / "*.c")]
+    cg = graph.build([str(tmp_path / "src" / "core.c")], ["-std=c11"])
+    f = analyse.analyse(cg, config.Config(entrypoints=["rt"], allow_parse_failures=cfg_globs))
+    assert any(x.kind == "parse_error" for x in f)
+
+
+def test_allow_parse_failure_flag_changes_the_exit_code(tmp_path):
+    (tmp_path / "good.c").write_text("void mix_frame(void){}")
+    missing = str(tmp_path / "nope.c")
+    argv = [str(tmp_path / "good.c"), missing, "--entry", "mix_frame"]
+    assert cli.main(argv) == 1
+    assert cli.main([*argv, "--allow-parse-failure", missing]) == 0
+
+
+def test_a_star_pattern_allows_every_parse_failure(tmp_path):
+    (tmp_path / "good.c").write_text("void mix_frame(void){}")
+    argv = [str(tmp_path / "good.c"), str(tmp_path / "nope.c"), "--entry", "mix_frame"]
+    assert cli.main([*argv, "--allow-parse-failure", "*"]) == 0
+
+
+def test_allow_parse_failures_round_trips_through_the_config(tmp_path):
+    cfg = _cfg(tmp_path, '[allow]\nparse_failures = ["vendor/*.c"]\n')
+    assert cfg.allow_parse_failures == ["vendor/*.c"]
+
+
+def test_allowing_a_parse_failure_does_not_hide_real_violations(tmp_path):
+    """Demoting the failure must not stop the rest of the sources being checked."""
+    (tmp_path / "good.c").write_text("#include <stdlib.h>\nvoid mix_frame(void){ malloc(1); }\n")
+    assert cli.main([str(tmp_path / "good.c"), str(tmp_path / "nope.c"),
+                     "--entry", "mix_frame", "--allow-parse-failure", "*"]) == 1

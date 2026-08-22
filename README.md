@@ -58,6 +58,10 @@ functions = ["mix_frame", "process_block"]
 [allow]
 # Reviewed by hand and known safe despite appearances.
 functions = ["rt_pool_acquire"]
+# Files that were never expected to parse standalone -- generated sources not
+# present in this checkout, platform-specific files. A failure here warns
+# instead of failing the build; a failure anywhere else still fails it.
+parse_failures = ["build/generated/*.c"]
 
 [forbidden.alloc]
 # Add your project's own wrappers to an existing category.
@@ -78,6 +82,11 @@ works from wherever you invoke the tool.
 
 Two things about the layering are worth knowing:
 
+- **`allow.parse_failures` is a list, not a switch.** A file that cannot be parsed at all is
+  normally a failed check, because nothing it defined was examined. Naming the cases you already
+  know about keeps a *new* failure fatal, which a blanket "ignore parse errors" flag would not.
+  `--allow-parse-failure GLOB` does the same from the command line, repeatable, and `'*'` allows
+  everything if you really want that.
 - **`[allow]` is transitive.** An allowed function's whole subtree is trusted and never searched.
   That is the point — you reviewed it — but it also means a change made underneath it later will
   not be noticed. Allow the narrowest function you actually audited.

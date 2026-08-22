@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fnmatch
+import os
 from collections import deque
 from dataclasses import dataclass, field
 
@@ -51,11 +53,16 @@ def analyse(graph: CallGraph, cfg: Config) -> list[Finding]:
     entry_label = ", ".join(cfg.entrypoints)
 
     # A file that would not parse at all contributes nothing to the graph, so
-    # anything it defined is invisible. That is a failed check, not a warning.
+    # anything it defined is invisible. That is a failed check, not a warning --
+    # unless the config says this file was never expected to parse standalone,
+    # in which case it is demoted to a warning but still reported. Listing the
+    # known cases keeps a *new* failure fatal, which a blanket switch would not.
     for src in graph.failed_files:
+        expected = _matches_any(src, cfg.allow_parse_failures)
         findings.append(Finding(
-            kind="parse_error", entrypoint=entry_label,
-            detail=f"could not parse {src} at all; nothing defined in it was checked",
+            kind="parse" if expected else "parse_error", entrypoint=entry_label,
+            detail=f"could not parse {src} at all; nothing defined in it was checked"
+                   + (" (expected: matches allow.parse_failures)" if expected else ""),
         ))
 
     for entry_name in cfg.entrypoints:
@@ -159,6 +166,14 @@ def analyse(graph: CallGraph, cfg: Config) -> list[Finding]:
         ))
 
     return findings
+
+
+def _matches_any(path: str, patterns: list[str]) -> bool:
+    """Glob-match a source path, tried both as given and as an absolute path."""
+    if not patterns:
+        return False
+    candidates = {path, os.path.abspath(path)}
+    return any(fnmatch.fnmatch(c, pattern) for c in candidates for pattern in patterns)
 
 
 def _find_cycles(graph: CallGraph, entry: Node,

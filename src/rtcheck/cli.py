@@ -61,6 +61,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--std", default="c11", help="C standard (default: c11)")
     ap.add_argument("--indirect", choices=["warn", "address-taken", "ignore"],
                     help="how to treat calls through function pointers")
+    ap.add_argument("--allow-parse-failure", dest="allow_parse_failures",
+                    action="append", default=[], metavar="GLOB",
+                    help="a file matching GLOB is not expected to parse standalone; "
+                         "warn instead of failing (repeatable, '*' for all)")
     ap.add_argument("--json", action="store_true", help="emit machine-readable output")
     ap.add_argument("--no-colour", action="store_true")
     ap.add_argument("--show-parse-errors", action="store_true",
@@ -74,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg.entrypoints = args.entry
     if args.indirect:
         cfg.indirect = args.indirect
+    cfg.allow_parse_failures += args.allow_parse_failures
     if not cfg.entrypoints:
         ap.error("no entry point given: use --entry NAME or set one in rtcheck.toml")
 
