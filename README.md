@@ -21,8 +21,19 @@ It never runs your program. It has no idea how long anything takes. It finds pat
 
 ## Install
 
+Not on PyPI yet — install from the repository:
+
 ```sh
-pip install rtcheck
+pip install git+https://github.com/giobuilds/rtcheck
+```
+
+Or from a checkout, which is what you want if you plan to send a pull request:
+
+```sh
+git clone https://github.com/giobuilds/rtcheck
+cd rtcheck
+pip install -e ".[dev]"
+pytest
 ```
 
 The `libclang` dependency bundles its own shared library, so there's no separate LLVM install.
@@ -121,7 +132,7 @@ Complementary to runtime checkers, not a replacement. A runtime tool tells you w
 3. Breadth-first search from each entry point. BFS rather than DFS so the reported path is the shortest one — the one that's quickest to read and fix.
 4. Stop at forbidden leaves, record the path, and note recursion and indirect sites along the way.
 
-Roughly 600 lines. It's meant to be readable.
+Roughly 900 lines. It's meant to be readable.
 
 ## Contributing
 
