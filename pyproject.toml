@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Static real-time safety checking for C: prove your audio callback never allocates, locks, or blocks."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 keywords = ["audio", "real-time", "static-analysis", "dsp", "embedded", "c"]
 dependencies = ["libclang>=16.0"]
 

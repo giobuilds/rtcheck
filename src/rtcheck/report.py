@@ -45,16 +45,26 @@ def render_text(findings: list[Finding], cfg: Config, colour: bool = True) -> st
         lines.append("")
 
     for finding in warnings:
-        label = {"indirect": "blind spot", "recursion": "unbounded", "unresolved": "unknown"}
+        label = {"indirect": "blind spot", "recursion": "unbounded",
+                 "unresolved": "not analysed", "parse_error": "not analysed",
+                 "parse": "degraded parse", "opaque": "unknown"}
         lines.append(c(YELLOW, f"{label.get(finding.kind, finding.kind)}: ") + finding.detail)
         if finding.path:
             trail = " \u2192 ".join(s.name for s in finding.path)
             lines.append(c(DIM, f"  via {trail}"))
         lines.append("")
 
+    blocked = [f for f in findings if f.kind in ("unresolved", "parse_error")]
+
     if errors:
         lines.append(c(RED, f"{len(errors)} violation(s)") +
                      (f", {len(warnings)} warning(s)" if warnings else ""))
+    elif blocked:
+        # Not green: an entry point or a file we could not analyse means the
+        # check did not happen, which must not read like a pass.
+        rest = len(warnings) - len(blocked)
+        lines.append(c(RED, f"{len(blocked)} check(s) could not be completed") +
+                     (f", {rest} warning(s)" if rest else ""))
     elif warnings:
         lines.append(c(GREEN, "no violations") + f", {len(warnings)} warning(s)")
     else:
@@ -75,5 +85,9 @@ def render_json(findings: list[Finding], cfg: Config) -> str:
         }
         for f in findings
     ]
-    return json.dumps({"findings": payload,
-                       "violations": sum(1 for f in findings if f.kind == "effect")}, indent=2)
+    return json.dumps({
+        "findings": payload,
+        "violations": sum(1 for f in findings if f.kind == "effect"),
+        "unresolved": sum(1 for f in findings
+                          if f.kind in ("unresolved", "parse_error")),
+    }, indent=2)

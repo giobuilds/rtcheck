@@ -21,6 +21,29 @@ def _collect_sources(paths: list[str]) -> list[str]:
     return [s for s in out if s.endswith(".c")] or out
 
 
+def _find_config(paths: list[str]) -> Path | None:
+    """Look for rtcheck.toml upwards from the CWD, then from the sources.
+
+    The README says to drop it next to your source, which is not necessarily
+    the directory the tool is invoked from.
+    """
+    starts = [Path.cwd()]
+    for raw in paths:
+        p = Path(raw).resolve()
+        starts.append(p if p.is_dir() else p.parent)
+
+    seen: set[Path] = set()
+    for start in starts:
+        for directory in (start, *start.parents):
+            if directory in seen:
+                continue
+            seen.add(directory)
+            candidate = directory / "rtcheck.toml"
+            if candidate.exists():
+                return candidate
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="rtcheck",
@@ -44,9 +67,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="print clang diagnostics from the parse")
     args = ap.parse_args(argv)
 
-    cfg_path = args.config
-    if cfg_path is None and Path("rtcheck.toml").exists():
-        cfg_path = Path("rtcheck.toml")
+    cfg_path = args.config or _find_config(args.paths)
     cfg = config.load(cfg_path)
 
     if args.entry:
@@ -60,19 +81,16 @@ def main(argv: list[str] | None = None) -> int:
     clang_args += [f"-I{i}" for i in args.includes]
     clang_args += [f"-D{d}" for d in args.defines]
 
+    per_file: dict[str, list[str]] = {}
     if args.compile_commands:
         sources, per_file = graph.compile_commands_sources(args.compile_commands)
-        merged: list[str] = []
-        for src in sources:
-            merged.extend(per_file.get(src, []))
-        clang_args += [a for a in dict.fromkeys(merged) if a.startswith(("-I", "-D", "-std", "-isystem"))]
     else:
         sources = _collect_sources(args.paths)
 
     if not sources:
         ap.error("no source files found")
 
-    cg = graph.build(sources, clang_args)
+    cg = graph.build(sources, clang_args, per_file)
 
     if args.show_parse_errors and cg.diagnostics:
         for d in cg.diagnostics[:40]:
@@ -85,7 +103,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(report.render_text(findings, cfg, colour=not args.no_colour))
 
-    return 1 if any(f.kind == "effect" for f in findings) else 0
+    # An entry point that could not be analysed is a failure, not a warning: a
+    # renamed function or an unparseable file would otherwise leave the build
+    # green forever while nothing was actually being checked. Opaque leaves are
+    # a different kind and stay non-fatal -- a real project reaches hundreds.
+    return 1 if any(f.kind in ("effect", "unresolved", "parse_error")
+                    for f in findings) else 0
 
 
 if __name__ == "__main__":
