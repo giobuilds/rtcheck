@@ -125,8 +125,7 @@ def analyse(graph: CallGraph, cfg: Config) -> list[Finding]:
                         queue.append(callee_usr)
 
             if cfg.flag_recursion:
-                for chain, start in _find_cycles(graph, entry, cfg, indirect_targets,
-                                                 allow, forbidden):
+                for chain, start in _find_cycles(graph, entry, allow, forbidden):
                     f = Finding(
                         kind="recursion", entrypoint=entry_name,
                         path=_steps_for_chain(graph, chain + [start]),
@@ -162,13 +161,20 @@ def analyse(graph: CallGraph, cfg: Config) -> list[Finding]:
     return findings
 
 
-def _find_cycles(graph: CallGraph, entry: Node, cfg: Config, indirect_targets: list[Node],
+def _find_cycles(graph: CallGraph, entry: Node,
                  allow: set[str], forbidden: dict[str, str]) -> list[tuple[list[str], str]]:
     """Find back edges anywhere in the subgraph reachable from `entry`.
 
     Recursion is unbounded stack growth wherever it sits, not only when the
     cycle happens to pass back through the entry point. Iterative rather than
     recursive so a deep call graph cannot exhaust the interpreter stack.
+
+    Only *real* call edges are followed, never the address-taken fan-out. That
+    fan-out is a guess -- any indirect call might reach any function whose
+    address is taken -- and a cycle that exists only inside the guess is not
+    evidence of recursion. On a large single translation unit the difference is
+    thousands of invented findings. Over-approximating is right for asking what
+    a call could reach; it is not a basis for asserting a function recurses.
 
     Returns (path from the entry to the closing call, function the cycle
     returns to) for each distinct cycle.
@@ -180,7 +186,7 @@ def _find_cycles(graph: CallGraph, entry: Node, cfg: Config, indirect_targets: l
         return name not in allow and name not in forbidden
 
     def successors(usr: str):
-        return iter([u for u, _ in _successors(graph.nodes[usr], graph, cfg, indirect_targets)])
+        return iter(list(graph.nodes[usr].calls))
 
     colour: dict[str, int] = {entry.usr: GREY}
     on_stack: list[str] = [entry.usr]

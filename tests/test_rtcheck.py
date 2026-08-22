@@ -475,3 +475,31 @@ def test_render_text_never_calls_a_failed_check_clean(tmp_path):
 def test_module_entry_point_is_wired_up():
     from rtcheck import __main__
     assert __main__.main is cli.main
+
+
+def test_address_taken_mode_does_not_invent_recursion(tmp_path):
+    """The indirect fan-out is a guess about targets. `mid` really only ever
+    calls `leaf`, but fanning every indirect call to every address-taken
+    function manufactures a mid -> mid edge, and with it a phantom cycle."""
+    f = run("""
+        typedef void (*Fn)(void);
+        static Fn table_a;
+        static Fn table_b;
+        static void leaf(void){}
+        static void mid(void){ table_a(); }
+        void install(void){ table_a = leaf; table_b = mid; }
+        void rt(void){ table_b(); }
+    """, "rt", tmp_path, indirect="address-taken")
+    assert not [x for x in f if x.kind == "recursion"]
+
+
+def test_address_taken_mode_still_reports_real_recursion(tmp_path):
+    """Genuine recursion sits on real call edges and must survive the change."""
+    f = run("""
+        typedef void (*Fn)(void);
+        static Fn slot;
+        static void spin(int n){ if (n) spin(n-1); }
+        void install(void){ slot = spin; }
+        void rt(int d){ spin(d); }
+    """, "rt", tmp_path, indirect="address-taken")
+    assert [x for x in f if x.kind == "recursion"]
