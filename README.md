@@ -33,7 +33,9 @@ The `libclang` dependency bundles its own shared library, so there's no separate
 rtcheck src/ --entry mix_frame
 ```
 
-Exit code is `1` if there are violations, so it drops straight into CI:
+Exit code is `1` if there are violations, so it drops straight into CI. It is also `1` if an
+entry point could not be analysed — a renamed function or a source file that failed to parse
+means nothing was checked, which must not read like a pass:
 
 ```yaml
 - run: rtcheck src/ --entry audio_callback --entry midi_isr
@@ -69,6 +71,23 @@ symbols = ["glBufferData", "vkQueueSubmit"]
 [options]
 indirect = "warn"     # warn | address-taken | ignore
 flag_recursion = true
+```
+
+`rtcheck.toml` is looked for beside the sources and upwards from the working directory, so it
+works from wherever you invoke the tool.
+
+Two things about the layering are worth knowing:
+
+- **`[allow]` is transitive.** An allowed function's whole subtree is trusted and never searched.
+  That is the point — you reviewed it — but it also means a change made underneath it later will
+  not be noticed. Allow the narrowest function you actually audited.
+- **A category extends the built-in list by default.** To throw the built-ins away and use only
+  your own symbols, set `replace = true`:
+
+```toml
+[forbidden.io]
+replace = true
+symbols = ["my_log"]
 ```
 
 ## Function pointers
